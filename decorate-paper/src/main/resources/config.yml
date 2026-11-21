@@ -1,0 +1,47 @@
+# DecorAte configuration (Paper 1.21.8)
+
+placement:
+  # Require sneaking (Shift + Right Click) to place items onto surfaces
+  require-sneak: true
+  # Maximum raycast distance in blocks
+  max-distance: 5.0
+  default-mode:
+    # FREE (continuous raycast position) or SNAP (quantized sub-grid)
+    type: FREE
+    # Sub-grid divisions per block when SNAP is active (e.g., 8 or 16)
+    grid-divisions: 16
+
+limits:
+  # Maximum items attached to a single supporting block (<= 0 for unlimited)
+  per-block: 32
+  # Maximum items inside a single chunk (<= 0 for unlimited)
+  per-chunk: 256
+  # Default per-player placement limit across worlds (overridable via decorate.limit.<n> or <= 0 for unlimited)
+  per-player: 200
+
+interaction:
+  # Angle increment in degrees when right-clicking a placed item
+  rotation-step-degrees: 45.0
+  # Restrict pickup/rotate/pose edits to the item owner (unless decorate.bypass.owner)
+  owner-only: true
+  # If true, picking up a Creative-placed item in Survival drops/returns the item
+  creative-drop-on-pickup: false
+
+support-block:
+  # Automatically remove placed items when their supporting block breaks, explodes, or is moved by a piston
+  auto-cleanup: true
+  # Drop Survival-placed items into the world during auto-cleanup
+  drop-survival-items: true
+
+visibility:
+  # Radius in chunks around each player to send PacketEvents display entities
+  render-chunk-radius: 4
+
+defaults:
+  display_transform: FIXED
+  scale: [0.5, 0.5, 0.5]
+  normal_offset: 0.02
+  default_pose: FLAT
+  hitbox:
+    width: 0.35
+    height: 0.35

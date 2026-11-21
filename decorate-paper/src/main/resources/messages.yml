@@ -1,0 +1,33 @@
+# MiniMessage formatted messages (supports PlaceholderAPI placeholders when installed)
+
+prefix: "<gradient:#f59e0b:#ef4444>[DecorAte]</gradient> "
+placed: "<prefix><green>Item placed.</green> <gray>(%decorate_count%/%decorate_limit%)</gray>"
+picked-up: "<prefix><yellow>Item picked up.</yellow>"
+rotated: "<prefix><aqua>Rotated to <white><yaw>°</white>.</aqua>"
+pose-toggled: "<prefix><aqua>Pose changed to <white><pose></white>.</aqua>"
+
+rejected:
+  not-placeable: "<prefix><red>This item cannot be placed as a decoration.</red>"
+  face-not-allowed: "<prefix><red>This item cannot be placed on that surface face.</red>"
+  block-limit: "<prefix><red>This block has reached the decoration limit.</red>"
+  chunk-limit: "<prefix><red>This chunk has reached the decoration limit.</red>"
+  player-limit: "<prefix><red>You have reached your decoration limit (<limit>).</red>"
+  protected: "<prefix><red>You do not have permission to decorate here.</red>"
+  not-owner: "<prefix><red>Only the owner can edit or pick up this decoration.</red>"
+  no-permission: "<prefix><red>You lack permission to do that.</red>"
+
+command:
+  reloaded: "<prefix><green>Reloaded configuration and <count> model profiles.</green>"
+  mode-set: "<prefix><green>Placement mode set to <white><mode></white> (1/<divisions>).</green>"
+  clear-done: "<prefix><yellow>Removed <count> placed items.</yellow>"
+  give-done: "<prefix><green>Gave <amount>x <profile> to <target>.</green>"
+  give-invalid: "<prefix><red>Profile '<profile>' does not exist or has no item template.</red>"
+  inspect-none: "<prefix><gray>You are not looking at any placed item.</gray>"
+  inspect-header: "<prefix><gold>Placed Item Info:</gold>"
+  inspect-lines:
+    - "<gray>Profile:</gray> <white><profile></white>"
+    - "<gray>Model:</gray> <white><model></white>"
+    - "<gray>Owner:</gray> <white><owner></white>"
+    - "<gray>Pose:</gray> <white><pose> @ <yaw>° (<face>)</white>"
+    - "<gray>Coords:</gray> <white><x>, <y>, <z></white>"
+  player-only: "<prefix><red>This command can only be executed by a player.</red>"

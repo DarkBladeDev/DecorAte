@@ -1,0 +1,45 @@
+# Example Level 2 custom model profiles for Paper 1.21.8 (ItemModelComponent + CustomModelData)
+profiles:
+  coffee_mug:
+    match:
+      item_model: "decor:coffee_mug"
+    allowed_faces: [UP]
+    display_transform: FIXED
+    scale: [0.65, 0.65, 0.65]
+    normal_offset: 0.02
+    default_pose: UPRIGHT
+    hitbox:
+      width: 0.30
+      height: 0.35
+    item:
+      material: PAPER
+      display_name: "<gold>Ceramic Coffee Mug"
+      lore:
+        - "<gray>Shift + Right Click on a surface to place"
+      item_model: "decor:coffee_mug"
+      custom_model_data:
+        floats: [101.0]
+        strings: ["coffee_mug"]
+
+  wall_plaque:
+    match:
+      material: PAPER
+      custom_model_data:
+        floats: [200.0]
+        flags: [true]
+    allowed_faces: [WALLS]
+    display_transform: FIXED
+    scale: [0.85, 0.85, 0.85]
+    normal_offset: 0.025
+    default_pose: FLAT
+    hitbox:
+      width: 0.50
+      height: 0.50
+    item:
+      material: PAPER
+      display_name: "<aqua>Decorative Wall Plaque"
+      lore:
+        - "<gray>Can only be placed on walls"
+      custom_model_data:
+        floats: [200.0]
+        flags: [true]

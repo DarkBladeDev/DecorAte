@@ -1,0 +1,40 @@
+name: DecorAte
+version: ${version}
+main: dev.decorate.paper.DecorAtePlugin
+api-version: "1.21"
+description: Modular surface ItemDisplay placement plugin using PacketEvents and 1.21.8 custom model components
+author: DecorAte
+depend:
+  - packetevents
+softdepend:
+  - PlaceholderAPI
+  - WorldGuard
+
+permissions:
+  decorate.place:
+    description: Allows placing items onto block surfaces
+    default: true
+  decorate.interact:
+    description: Allows interacting with placed items (pickup, rotate, pose)
+    default: true
+  decorate.command.mode:
+    description: Allows toggling placement mode and snap grid
+    default: true
+  decorate.command.info:
+    description: Allows inspecting targeted placed items
+    default: true
+  decorate.command.reload:
+    description: Allows reloading DecorAte configuration and profiles
+    default: op
+  decorate.command.clear:
+    description: Allows clearing placed items in an area or chunk
+    default: op
+  decorate.command.give:
+    description: Allows spawning custom items defined in YAML profiles
+    default: op
+  decorate.bypass.limit:
+    description: Bypasses per-player placement limits
+    default: op
+  decorate.bypass.owner:
+    description: Allows editing or removing items placed by other players
+    default: op
