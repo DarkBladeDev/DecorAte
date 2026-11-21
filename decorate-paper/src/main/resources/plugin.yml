@@ -3,7 +3,7 @@ version: ${version}
 main: dev.decorate.paper.DecorAtePlugin
 api-version: "1.21"
 description: Modular surface ItemDisplay placement plugin using PacketEvents and 1.21.8 custom model components
-author: DecorAte
+author: DarkBladeDev
 depend:
   - packetevents
 softdepend:
