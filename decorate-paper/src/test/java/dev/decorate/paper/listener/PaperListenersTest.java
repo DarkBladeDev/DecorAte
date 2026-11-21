@@ -1,7 +1,9 @@
 package dev.decorate.paper.listener;
 
+import dev.decorate.api.event.DecorInteractEvent;
 import dev.decorate.api.model.BlockCoordinate;
 import dev.decorate.api.model.ChunkCoordinate;
+import dev.decorate.api.model.PlacedItem;
 import dev.decorate.api.model.Vec3d;
 import dev.decorate.api.spi.DisplayRenderer;
 import dev.decorate.api.spi.StorageProvider;
@@ -26,6 +28,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -41,11 +44,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -161,5 +166,88 @@ class PaperListenersTest {
 
         listener.onPlayerMove(new PlayerMoveEvent(player, from, to));
         assertTrue(visibility.isChunkVisibleToPlayer(player.getUniqueId(), new ChunkCoordinate("world", 1, 0)));
+    }
+
+    @Test
+    void disabledPlacementLeavesVanillaInteractUncancelledAndPreservesPersonalInteraction() {
+        YamlConfiguration msgYaml = new YamlConfiguration();
+        msgYaml.set("rejected.disabled", "<red>Disabled</red>");
+        MessageService messages = new MessageService(msgYaml, new NoOpPlaceholderService());
+        PlacementTriggerListener triggerListener = new PlacementTriggerListener(placementService, messages);
+        DecorInteractionHandler interactionHandler = new DecorInteractionHandler(placementService, messages);
+
+        UUID playerId = UUID.randomUUID();
+        Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+        when(player.getName()).thenReturn("Steve");
+        when(player.isSneaking()).thenReturn(true);
+        when(player.hasPermission(PlacementTriggerListener.PERMISSION_PLACE)).thenReturn(true);
+        when(player.hasPermission(DecorInteractionHandler.PERMISSION_INTERACT)).thenReturn(true);
+        when(player.getGameMode()).thenReturn(GameMode.SURVIVAL);
+        when(player.getLocation()).thenReturn(new Location(world, 4, 65, 10));
+        when(player.getEffectivePermissions()).thenReturn(Set.of());
+
+        AtomicInteger amt = new AtomicInteger(2);
+        ItemStack handItem = mock(ItemStack.class);
+        when(handItem.getType()).thenReturn(Material.PAPER);
+        when(handItem.getAmount()).thenAnswer(inv -> amt.get());
+        doAnswer(inv -> {
+            amt.set(inv.getArgument(0));
+            return null;
+        }).when(handItem).setAmount(any(Integer.class));
+        when(handItem.clone()).thenReturn(mock(ItemStack.class));
+        RayTraceResult ray = new RayTraceResult(new Vector(4.35, 65.0, 8.65), block, BlockFace.UP);
+        when(player.rayTraceBlocks(anyDouble(), any())).thenReturn(ray);
+
+        // Seed one placed item while enabled
+        PlacedItem seeded = placementService.tryPlace(player, block, BlockFace.UP, new Vec3d(4.35, 65.0, 8.65), handItem)
+                .placedItem();
+        assertEquals(1, amt.get());
+
+        // 1. Personal toggle OFF: placement trigger does not raytrace or cancel vanilla event
+        placementService.setPlayerPlacementEnabled(playerId, false);
+        PlayerInteractEvent personalOffEvent = new PlayerInteractEvent(
+                player, Action.RIGHT_CLICK_BLOCK, handItem, block, BlockFace.UP, EquipmentSlot.HAND
+        );
+        triggerListener.onPlayerInteract(personalOffEvent);
+        assertFalse(personalOffEvent.useInteractedBlock() == org.bukkit.event.Event.Result.DENY);
+        assertEquals(1, registry.countBySupportBlock(new BlockCoordinate("world", 4, 64, 8)));
+        assertEquals(1, amt.get());
+
+        // Interaction on existing item STILL works while personal toggle is OFF
+        interactionHandler.onInteract(player, seeded.id(), DecorInteractEvent.Action.ROTATE);
+        assertEquals(225.0f, registry.findById(seeded.id()).orElseThrow().pose().yawDegrees(), 0.01f);
+
+        // 2. Global toggle OFF: placement trigger leaves vanilla intact AND interaction rejects with message
+        placementService.setGlobalEnabled(false);
+        PlayerInteractEvent globalOffEvent = new PlayerInteractEvent(
+                player, Action.RIGHT_CLICK_BLOCK, handItem, block, BlockFace.UP, EquipmentSlot.HAND
+        );
+        triggerListener.onPlayerInteract(globalOffEvent);
+        assertFalse(globalOffEvent.useInteractedBlock() == org.bukkit.event.Event.Result.DENY);
+        assertEquals(1, registry.countBySupportBlock(new BlockCoordinate("world", 4, 64, 8)));
+
+        interactionHandler.onInteract(player, seeded.id(), DecorInteractEvent.Action.ROTATE);
+        assertEquals(225.0f, registry.findById(seeded.id()).orElseThrow().pose().yawDegrees(), 0.01f);
+        verify(player).sendMessage(any(net.kyori.adventure.text.Component.class));
+
+        // Ensure rayTraceBlocks was never invoked on disabled triggers
+        verify(player, never()).rayTraceBlocks(anyDouble(), any());
+    }
+
+    @Test
+    void playerQuitResetsPersonalPlacementSession() {
+        ChunkVisibilityManager visibility = new ChunkVisibilityManager(registry, storage, renderer, 1);
+        VisibilityLifecycleListener listener = new VisibilityLifecycleListener(visibility, storage, placementService, Runnable::run);
+
+        UUID playerId = UUID.randomUUID();
+        Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+
+        placementService.setPlayerPlacementEnabled(playerId, false);
+        assertFalse(placementService.isPlayerPlacementEnabled(playerId));
+
+        listener.onPlayerQuit(new PlayerQuitEvent(player, net.kyori.adventure.text.Component.empty(), PlayerQuitEvent.QuitReason.DISCONNECTED));
+        assertTrue(placementService.isPlayerPlacementEnabled(playerId));
     }
 }

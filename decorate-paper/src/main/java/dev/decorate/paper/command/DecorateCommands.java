@@ -110,6 +110,49 @@ public final class DecorateCommands {
                 MessageService.tag("divisions", String.valueOf(updated.gridDivisions())));
     }
 
+    @Command("decorate|dec toggle [state]")
+    @Permission("decorate.command.toggle")
+    @CommandDescription("Toggles personal surface item placement on or off")
+    public void togglePlacement(CommandSender sender, @Argument("state") @Nullable ToggleState state) {
+        if (!(sender instanceof Player player)) {
+            messages.send(sender, "command.player-only");
+            return;
+        }
+        boolean enabled;
+        if (state == null) {
+            enabled = placementService.togglePlayerPlacementEnabled(player.getUniqueId());
+        } else {
+            enabled = state == ToggleState.ON;
+            placementService.setPlayerPlacementEnabled(player.getUniqueId(), enabled);
+        }
+        messages.send(player, enabled ? "command.toggle-enabled" : "command.toggle-disabled");
+    }
+
+    @Command("decorate|dec global [state]")
+    @Permission("decorate.command.global")
+    @CommandDescription("Toggles DecorAte placement and interaction globally across the server")
+    public void toggleGlobal(CommandSender sender, @Argument("state") @Nullable GlobalToggleState state) {
+        boolean enabled;
+        if (state == null || state == GlobalToggleState.TOGGLE) {
+            enabled = placementService.toggleGlobalEnabled();
+        } else {
+            enabled = state == GlobalToggleState.ON;
+            placementService.setGlobalEnabled(enabled);
+        }
+        messages.send(sender, enabled ? "command.global-enabled" : "command.global-disabled");
+    }
+
+    public enum ToggleState {
+        ON,
+        OFF
+    }
+
+    public enum GlobalToggleState {
+        ON,
+        OFF,
+        TOGGLE
+    }
+
     @Command("decorate|dec info")
     @Permission("decorate.command.info")
     @CommandDescription("Inspects the placed item you are currently looking at")

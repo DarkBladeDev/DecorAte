@@ -15,10 +15,15 @@ rejected:
   protected: "<prefix><red>You do not have permission to decorate here.</red>"
   not-owner: "<prefix><red>Only the owner can edit or pick up this decoration.</red>"
   no-permission: "<prefix><red>You lack permission to do that.</red>"
+  disabled: "<prefix><red>DecorAte is currently disabled globally.</red>"
 
 command:
   reloaded: "<prefix><green>Reloaded configuration and <count> model profiles.</green>"
   mode-set: "<prefix><green>Placement mode set to <white><mode></white> (1/<divisions>).</green>"
+  toggle-enabled: "<prefix><green>Personal item placement <white>enabled</white>.</green>"
+  toggle-disabled: "<prefix><yellow>Personal item placement <white>disabled</white>. Vanilla Shift+Right-Click restored.</yellow>"
+  global-enabled: "<prefix><green>Global DecorAte placement and interaction <white>enabled</white>.</green>"
+  global-disabled: "<prefix><red>Global DecorAte placement and interaction <white>disabled</white>.</red>"
   clear-done: "<prefix><yellow>Removed <count> placed items.</yellow>"
   give-done: "<prefix><green>Gave <amount>x <profile> to <target>.</green>"
   give-invalid: "<prefix><red>Profile '<profile>' does not exist or has no item template.</red>"

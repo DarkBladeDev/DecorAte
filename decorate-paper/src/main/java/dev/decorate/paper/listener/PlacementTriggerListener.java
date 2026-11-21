@@ -38,6 +38,9 @@ public final class PlacementTriggerListener implements Listener {
             return;
         }
         Player player = event.getPlayer();
+        if (!placementService.isGlobalEnabled() || !placementService.isPlayerPlacementEnabled(player.getUniqueId())) {
+            return;
+        }
         if (placementService.settings().requireSneakForPlace() && !player.isSneaking()) {
             return;
         }

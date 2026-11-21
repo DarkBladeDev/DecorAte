@@ -32,9 +32,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Core orchestration service handling placement, interaction (pickup/rotate/pose toggle),
@@ -54,6 +56,8 @@ public final class PlacementService {
     private final List<ProtectionHook> protectionHooks = new CopyOnWriteArrayList<>();
     private final Map<UUID, PlacementMode> playerModes = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> playerTotalCounts = new ConcurrentHashMap<>();
+    private final Set<UUID> disabledPlacementPlayers = ConcurrentHashMap.newKeySet();
+    private final AtomicBoolean globalEnabled;
     private volatile DecorateSettings settings;
 
     public PlacementService(
@@ -80,12 +84,14 @@ public final class PlacementService {
         this.renderer = Objects.requireNonNull(renderer, "renderer must not be null");
         this.profileResolver = Objects.requireNonNull(profileResolver, "profileResolver must not be null");
         this.settings = Objects.requireNonNull(settings, "settings must not be null");
+        this.globalEnabled = new AtomicBoolean(settings.globalPlacementEnabled());
         this.itemCodec = Objects.requireNonNull(itemCodec, "itemCodec must not be null");
         this.eventDispatcher = Objects.requireNonNull(eventDispatcher, "eventDispatcher must not be null");
     }
 
     public void updateSettings(DecorateSettings settings) {
         this.settings = Objects.requireNonNull(settings, "settings must not be null");
+        this.globalEnabled.set(settings.globalPlacementEnabled());
     }
 
     public DecorateSettings settings() {
@@ -102,6 +108,55 @@ public final class PlacementService {
 
     public void setPlayerMode(UUID playerId, PlacementMode mode) {
         playerModes.put(playerId, Objects.requireNonNull(mode, "mode must not be null"));
+    }
+
+    public boolean isGlobalEnabled() {
+        return globalEnabled.get();
+    }
+
+    public void setGlobalEnabled(boolean enabled) {
+        globalEnabled.set(enabled);
+    }
+
+    public boolean toggleGlobalEnabled() {
+        while (true) {
+            boolean current = globalEnabled.get();
+            boolean next = !current;
+            if (globalEnabled.compareAndSet(current, next)) {
+                return next;
+            }
+        }
+    }
+
+    public boolean isPlayerPlacementEnabled(UUID playerId) {
+        Objects.requireNonNull(playerId, "playerId must not be null");
+        return !disabledPlacementPlayers.contains(playerId);
+    }
+
+    public void setPlayerPlacementEnabled(UUID playerId, boolean enabled) {
+        Objects.requireNonNull(playerId, "playerId must not be null");
+        if (enabled) {
+            disabledPlacementPlayers.remove(playerId);
+        } else {
+            disabledPlacementPlayers.add(playerId);
+        }
+    }
+
+    public boolean togglePlayerPlacementEnabled(UUID playerId) {
+        Objects.requireNonNull(playerId, "playerId must not be null");
+        synchronized (disabledPlacementPlayers) {
+            if (disabledPlacementPlayers.remove(playerId)) {
+                return true;
+            }
+            disabledPlacementPlayers.add(playerId);
+            return false;
+        }
+    }
+
+    public void clearPlayerSession(UUID playerId) {
+        if (playerId != null) {
+            disabledPlacementPlayers.remove(playerId);
+        }
     }
 
     /**
@@ -165,6 +220,12 @@ public final class PlacementService {
             Vec3d hitPoint,
             ItemStack handItem
     ) {
+        if (!isGlobalEnabled()) {
+            return PlaceOutcome.rejected(OutcomeReason.GLOBAL_DISABLED);
+        }
+        if (!isPlayerPlacementEnabled(player.getUniqueId())) {
+            return PlaceOutcome.rejected(OutcomeReason.PLAYER_DISABLED);
+        }
         if (handItem == null || isAir(handItem.getType()) || handItem.getAmount() <= 0) {
             return PlaceOutcome.rejected(OutcomeReason.INVALID_ITEM);
         }
@@ -272,6 +333,9 @@ public final class PlacementService {
      * @return interaction outcome
      */
     public InteractOutcome handleInteraction(Player player, UUID itemId, DecorInteractEvent.Action action) {
+        if (!isGlobalEnabled()) {
+            return InteractOutcome.rejected(OutcomeReason.GLOBAL_DISABLED);
+        }
         Optional<PlacedItem> existingOpt = registry.findById(itemId);
         if (existingOpt.isEmpty()) {
             return InteractOutcome.rejected(OutcomeReason.NOT_FOUND);
@@ -451,7 +515,9 @@ public final class PlacementService {
         PROTECTED_REGION,
         EVENT_CANCELLED,
         NOT_FOUND,
-        NOT_OWNER
+        NOT_OWNER,
+        GLOBAL_DISABLED,
+        PLAYER_DISABLED
     }
 
     public record PlaceOutcome(boolean accepted, OutcomeReason reason, @Nullable PlacedItem placedItem) {

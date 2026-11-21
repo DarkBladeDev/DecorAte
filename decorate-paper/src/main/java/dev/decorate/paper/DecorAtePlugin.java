@@ -3,9 +3,7 @@ package dev.decorate.paper;
 import com.github.retrooper.packetevents.PacketEvents;
 import dev.decorate.api.DecorAteApi;
 import dev.decorate.api.DecorAteProvider;
-import dev.decorate.api.event.DecorInteractEvent;
 import dev.decorate.api.model.ChunkCoordinate;
-import dev.decorate.api.model.PlacedItem;
 import dev.decorate.api.spi.PlaceholderService;
 import dev.decorate.core.config.DecorateSettings;
 import dev.decorate.core.profile.DefaultProfileResolver;
@@ -23,6 +21,7 @@ import dev.decorate.packet.PacketInteractionListener;
 import dev.decorate.paper.command.DecorateCommands;
 import dev.decorate.paper.config.DecorAteConfigLoader;
 import dev.decorate.paper.config.MessageService;
+import dev.decorate.paper.listener.DecorInteractionHandler;
 import dev.decorate.paper.listener.PlacementTriggerListener;
 import dev.decorate.paper.listener.SupportBlockListener;
 import dev.decorate.paper.listener.VisibilityLifecycleListener;
@@ -33,7 +32,6 @@ import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.incendo.cloud.annotations.AnnotationParser;
@@ -43,9 +41,6 @@ import org.incendo.cloud.paper.LegacyPaperCommandManager;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -123,7 +118,7 @@ public final class DecorAtePlugin extends JavaPlugin {
         this.packetInteractionListener = new PacketInteractionListener(
                 renderer,
                 mainThread,
-                this::handlePacketInteraction
+                new DecorInteractionHandler(placementService, messageService)
         );
         PacketEvents.getAPI().getEventManager().registerListener(packetInteractionListener);
 
@@ -170,46 +165,6 @@ public final class DecorAtePlugin extends JavaPlugin {
                 storage.close().get(5, TimeUnit.SECONDS);
             } catch (Exception ex) {
                 getLogger().warning("Timed out waiting for SQLite storage shutdown: " + ex.getMessage());
-            }
-        }
-    }
-
-    private void handlePacketInteraction(Player player, UUID itemId, DecorInteractEvent.Action action) {
-        if (!player.hasPermission("decorate.interact")) {
-            messageService.send(player, "rejected.no-permission");
-            return;
-        }
-        PlacementService.InteractOutcome outcome = placementService.handleInteraction(player, itemId, action);
-        if (!outcome.accepted()) {
-            switch (outcome.reason()) {
-                case NOT_OWNER -> messageService.send(player, "rejected.not-owner");
-                case PROTECTED_REGION -> messageService.send(player, "rejected.protected");
-                default -> {}
-            }
-            return;
-        }
-
-        switch (action) {
-            case PICKUP -> {
-                if (outcome.returnedItem() != null) {
-                    Map<Integer, ItemStack> overflow = player.getInventory().addItem(outcome.returnedItem());
-                    for (ItemStack extra : overflow.values()) {
-                        player.getWorld().dropItemNaturally(player.getLocation(), extra);
-                    }
-                }
-                messageService.send(player, "picked-up");
-            }
-            case ROTATE -> {
-                if (outcome.item() != null) {
-                    messageService.send(player, "rotated",
-                            MessageService.tag("yaw", String.format(Locale.ROOT, "%.1f", outcome.item().pose().yawDegrees())));
-                }
-            }
-            case TOGGLE_POSE -> {
-                if (outcome.item() != null) {
-                    messageService.send(player, "pose-toggled",
-                            MessageService.tag("pose", outcome.item().pose().poseMode().name()));
-                }
             }
         }
     }

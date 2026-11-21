@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -38,11 +39,45 @@ class DecorAteConfigAndLookupTest {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(new InputStreamReader(stream, StandardCharsets.UTF_8));
 
         DecorateSettings settings = DecorAteConfigLoader.loadSettings(yaml);
+        assertTrue(settings.globalPlacementEnabled());
         assertTrue(settings.requireSneakForPlace());
         assertEquals(5.0, settings.maxPlaceDistance());
         assertEquals(32, settings.maxItemsPerBlock());
         assertEquals(PlacementMode.Mode.FREE, settings.defaultPlacementMode().mode());
         assertEquals(16, settings.defaultPlacementMode().gridDivisions());
+    }
+
+    @Test
+    void loadsGlobalPlacementEnabledFlagAndDefault() {
+        YamlConfiguration emptyYaml = new YamlConfiguration();
+        assertTrue(DecorAteConfigLoader.loadSettings(emptyYaml).globalPlacementEnabled());
+
+        YamlConfiguration disabledYaml = new YamlConfiguration();
+        disabledYaml.set("placement.enabled", false);
+        assertFalse(DecorAteConfigLoader.loadSettings(disabledYaml).globalPlacementEnabled());
+
+        YamlConfiguration enabledYaml = new YamlConfiguration();
+        enabledYaml.set("placement.enabled", true);
+        assertTrue(DecorAteConfigLoader.loadSettings(enabledYaml).globalPlacementEnabled());
+    }
+
+    @Test
+    void loadsMessagesAndPluginResourcesWithToggleEntries() {
+        var messagesStream = getClass().getClassLoader().getResourceAsStream("messages.yml");
+        assertNotNull(messagesStream);
+        YamlConfiguration messages = YamlConfiguration.loadConfiguration(new InputStreamReader(messagesStream, StandardCharsets.UTF_8));
+        assertNotNull(messages.getString("rejected.disabled"));
+        assertNotNull(messages.getString("command.toggle-enabled"));
+        assertNotNull(messages.getString("command.toggle-disabled"));
+        assertNotNull(messages.getString("command.global-enabled"));
+        assertNotNull(messages.getString("command.global-disabled"));
+
+        var pluginStream = getClass().getClassLoader().getResourceAsStream("plugin.yml");
+        assertNotNull(pluginStream);
+        YamlConfiguration pluginYml = YamlConfiguration.loadConfiguration(new InputStreamReader(pluginStream, StandardCharsets.UTF_8));
+        assertEquals(true, pluginYml.get("permissions.decorate\\.command\\.toggle.default") != null
+                || pluginYml.getConfigurationSection("permissions").getConfigurationSection("decorate.command.toggle").getBoolean("default"));
+        assertEquals("op", pluginYml.getConfigurationSection("permissions").getConfigurationSection("decorate.command.global").getString("default"));
     }
 
     @Test

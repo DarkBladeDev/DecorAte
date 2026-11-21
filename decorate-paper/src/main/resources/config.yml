@@ -1,6 +1,8 @@
 # DecorAte configuration (Paper 1.21.8)
 
 placement:
+  # Enable surface placement and decoration interaction globally on startup/reload
+  enabled: true
   # Require sneaking (Shift + Right Click) to place items onto surfaces
   require-sneak: true
   # Maximum raycast distance in blocks

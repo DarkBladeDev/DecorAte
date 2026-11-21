@@ -48,6 +48,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -145,7 +146,13 @@ class DecorateCommandsTest {
         when(player.getInventory()).thenReturn(inventory);
 
         reloaded = new AtomicBoolean(false);
-        MessageService messages = new MessageService(new YamlConfiguration(), new NoOpPlaceholderService());
+        YamlConfiguration messagesYaml = new YamlConfiguration();
+        messagesYaml.set("command.player-only", "<red>Player only</red>");
+        messagesYaml.set("command.toggle-enabled", "<green>Enabled</green>");
+        messagesYaml.set("command.toggle-disabled", "<yellow>Disabled</yellow>");
+        messagesYaml.set("command.global-enabled", "<green>Global enabled</green>");
+        messagesYaml.set("command.global-disabled", "<red>Global disabled</red>");
+        MessageService messages = new MessageService(messagesYaml, new NoOpPlaceholderService());
 
         commandManager = new CommandManager<>(
                 ExecutionCoordinator.simpleCoordinator(),
@@ -213,5 +220,41 @@ class DecorateCommandsTest {
         commandManager.commandExecutor().executeCommand(player, "decorate give coffee_mug Steve").join();
         commandManager.commandExecutor().executeCommand(player, "decorate give coffee_mug Steve 2").join();
         verify(player.getInventory(), org.mockito.Mockito.times(3)).addItem(any(ItemStack.class));
+    }
+
+    @Test
+    void executesPersonalAndGlobalToggleCommands() {
+        // Preserve player SNAP mode while toggling placement off and back on
+        commandManager.commandExecutor().executeCommand(player, "decorate snap 8").join();
+        assertTrue(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
+
+        commandManager.commandExecutor().executeCommand(player, "dec toggle").join();
+        assertFalse(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
+        assertEquals(new PlacementMode(PlacementMode.Mode.SNAP, 8), placementService.getPlayerMode(player.getUniqueId()));
+
+        commandManager.commandExecutor().executeCommand(player, "decorate toggle on").join();
+        assertTrue(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
+
+        commandManager.commandExecutor().executeCommand(player, "dec toggle off").join();
+        assertFalse(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
+
+        // Console cannot execute personal toggle, but can execute global toggle
+        CommandSender console = mock(CommandSender.class);
+        when(console.hasPermission(any(String.class))).thenReturn(true);
+        commandManager.commandExecutor().executeCommand(console, "decorate toggle").join();
+        verify(console).sendMessage(any(net.kyori.adventure.text.Component.class));
+
+        assertTrue(placementService.isGlobalEnabled());
+        commandManager.commandExecutor().executeCommand(console, "decorate global off").join();
+        assertFalse(placementService.isGlobalEnabled());
+
+        commandManager.commandExecutor().executeCommand(player, "dec global toggle").join();
+        assertTrue(placementService.isGlobalEnabled());
+
+        commandManager.commandExecutor().executeCommand(player, "dec global").join();
+        assertFalse(placementService.isGlobalEnabled());
+
+        commandManager.commandExecutor().executeCommand(console, "dec global on").join();
+        assertTrue(placementService.isGlobalEnabled());
     }
 }

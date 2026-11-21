@@ -60,11 +60,15 @@ public final class DecorAteExpansion extends PlaceholderExpansion {
 
     @Override
     public @Nullable String onPlaceholderRequest(Player player, @NotNull String params) {
+        String key = params.toLowerCase(Locale.ROOT);
+        if ("enabled_global".equals(key)) {
+            return String.valueOf(placementService.isGlobalEnabled());
+        }
         if (player == null) {
             return "";
         }
-        String key = params.toLowerCase(Locale.ROOT);
         return switch (key) {
+            case "enabled" -> String.valueOf(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
             case "count" -> String.valueOf(placementService.getOwnerCount(player.getUniqueId()));
             case "world_count" -> String.valueOf(registry.countLoadedByOwnerInWorld(
                     player.getUniqueId(),

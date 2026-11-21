@@ -72,7 +72,9 @@ public final class VisibilityLifecycleListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
-        visibilityManager.clearPlayer(event.getPlayer());
+        Player player = event.getPlayer();
+        visibilityManager.clearPlayer(player);
+        placementService.clearPlayerSession(player.getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

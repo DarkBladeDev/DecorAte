@@ -20,6 +20,12 @@ permissions:
   decorate.command.mode:
     description: Allows toggling placement mode and snap grid
     default: true
+  decorate.command.toggle:
+    description: Allows toggling personal surface item placement
+    default: true
+  decorate.command.global:
+    description: Allows toggling DecorAte placement and interaction globally
+    default: op
   decorate.command.info:
     description: Allows inspecting targeted placed items
     default: true

@@ -23,6 +23,7 @@ public final class DecorAteConfigLoader {
     }
 
     public static DecorateSettings loadSettings(FileConfiguration config) {
+        boolean globalEnabled = config.getBoolean("placement.enabled", true);
         boolean requireSneak = config.getBoolean("placement.require-sneak", true);
         double maxDistance = config.getDouble("placement.max-distance", 5.0);
 
@@ -59,7 +60,8 @@ public final class DecorAteConfigLoader {
                 ownerOnly,
                 renderChunkRadius,
                 new PlacementMode(modeType, gridDivisions),
-                requireSneak
+                requireSneak,
+                globalEnabled
         );
     }
 

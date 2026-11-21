@@ -218,6 +218,48 @@ class PlacementServiceTest {
         assertEquals(PlacementService.OutcomeReason.PROFILE_NOT_PLACEABLE, blockedProfile.reason());
     }
 
+    @Test
+    void enforcesPlayerAndGlobalPlacementTogglesAndSessionReset() {
+        UUID playerId = UUID.randomUUID();
+        Player player = mockPlayer(playerId, "Steve", GameMode.SURVIVAL);
+        ItemStack stack = mockItem(Material.PAPER, 3);
+
+        assertTrue(service.isGlobalEnabled());
+        assertTrue(service.isPlayerPlacementEnabled(playerId));
+
+        // Place one item while enabled
+        var placed = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);
+        assertTrue(placed.accepted());
+        UUID itemId = placed.placedItem().id();
+
+        // Personal toggle OFF blocks placement, preserves interaction, and resets on session clear
+        assertFalse(service.togglePlayerPlacementEnabled(playerId));
+        assertFalse(service.isPlayerPlacementEnabled(playerId));
+        var playerDisabled = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);
+        assertFalse(playerDisabled.accepted());
+        assertEquals(PlacementService.OutcomeReason.PLAYER_DISABLED, playerDisabled.reason());
+        assertTrue(service.handleInteraction(player, itemId, DecorInteractEvent.Action.ROTATE).accepted());
+
+        service.clearPlayerSession(playerId);
+        assertTrue(service.isPlayerPlacementEnabled(playerId));
+
+        // Global toggle OFF blocks both placement and interaction
+        assertFalse(service.toggleGlobalEnabled());
+        assertFalse(service.isGlobalEnabled());
+        var globalDisabledPlace = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);
+        assertFalse(globalDisabledPlace.accepted());
+        assertEquals(PlacementService.OutcomeReason.GLOBAL_DISABLED, globalDisabledPlace.reason());
+
+        var globalDisabledInteract = service.handleInteraction(player, itemId, DecorInteractEvent.Action.PICKUP);
+        assertFalse(globalDisabledInteract.accepted());
+        assertEquals(PlacementService.OutcomeReason.GLOBAL_DISABLED, globalDisabledInteract.reason());
+
+        // updateSettings re-syncs globalEnabled from config
+        service.updateSettings(DecorateSettings.DEFAULTS);
+        assertTrue(service.isGlobalEnabled());
+        assertTrue(service.handleInteraction(player, itemId, DecorInteractEvent.Action.PICKUP).accepted());
+    }
+
     private Player mockPlayer(UUID id, String name, GameMode mode) {
         Player p = mock(Player.class);
         when(p.getUniqueId()).thenReturn(id);

@@ -106,5 +106,19 @@ class PapiPlaceholderTest {
         when(player.hasPermission(PlacementService.PERMISSION_BYPASS_LIMIT)).thenReturn(true);
         assertEquals("unlimited", expansion.onPlaceholderRequest(player, "limit"));
         assertEquals("unlimited", expansion.onPlaceholderRequest(player, "remaining"));
+
+        // Personal and global toggle placeholders track state independently
+        assertEquals("true", expansion.onPlaceholderRequest(player, "enabled"));
+        assertEquals("true", expansion.onPlaceholderRequest(player, "enabled_global"));
+
+        placementService.setPlayerPlacementEnabled(ownerId, false);
+        assertEquals("false", expansion.onPlaceholderRequest(player, "enabled"));
+        assertEquals("true", expansion.onPlaceholderRequest(player, "enabled_global"));
+
+        placementService.setPlayerPlacementEnabled(ownerId, true);
+        placementService.setGlobalEnabled(false);
+        assertEquals("true", expansion.onPlaceholderRequest(player, "enabled"));
+        assertEquals("false", expansion.onPlaceholderRequest(player, "enabled_global"));
+        assertEquals("false", expansion.onPlaceholderRequest(null, "enabled_global"));
     }
 }

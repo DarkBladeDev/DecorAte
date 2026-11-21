@@ -17,6 +17,7 @@ import dev.decorate.api.model.PlacementMode;
  * @param renderChunkRadius view distance in chunks for packet display tracking
  * @param defaultPlacementMode default player placement mode (FREE vs SNAP)
  * @param requireSneakForPlace whether placing requires sneaking (Shift + Right Click)
+ * @param globalPlacementEnabled whether placement and item interaction are globally enabled on startup/reload
  */
 public record DecorateSettings(
         double maxPlaceDistance,
@@ -30,7 +31,8 @@ public record DecorateSettings(
         boolean ownerOnlyInteraction,
         int renderChunkRadius,
         PlacementMode defaultPlacementMode,
-        boolean requireSneakForPlace
+        boolean requireSneakForPlace,
+        boolean globalPlacementEnabled
 ) {
 
     /** Sensible production defaults. */
@@ -46,6 +48,7 @@ public record DecorateSettings(
             true,
             4,
             PlacementMode.DEFAULT_FREE,
+            true,
             true
     );
 }
