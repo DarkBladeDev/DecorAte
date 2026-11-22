@@ -97,6 +97,7 @@ class PlacementServiceTest {
     @Test
     void allowsMultipleItemsPerBlockAndTracksSurvivalConsumeAndPickup() {
         Player player = mockPlayer(UUID.randomUUID(), "Steve", GameMode.SURVIVAL);
+        service.setPlayerPlacementEnabled(player.getUniqueId(), true);
         ItemStack stack = mockItem(Material.PAPER, 3);
 
         var first = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.2, 65.0, 20.2), stack);
@@ -129,6 +130,7 @@ class PlacementServiceTest {
     @Test
     void creativeModeDoesNotConsumeAndDoesNotDropByDefault() {
         Player creativePlayer = mockPlayer(UUID.randomUUID(), "Builder", GameMode.CREATIVE);
+        service.setPlayerPlacementEnabled(creativePlayer.getUniqueId(), true);
         ItemStack stack = mockItem(Material.PAPER, 1);
 
         var placed = service.tryPlace(creativePlayer, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);
@@ -145,6 +147,7 @@ class PlacementServiceTest {
     void protectionHookBlocksPlacementAndSupportBlockRemovalCleansUp() {
         UUID owner = UUID.randomUUID();
         Player player = mockPlayer(owner, "Alex", GameMode.SURVIVAL);
+        service.setPlayerPlacementEnabled(owner, true);
         ItemStack stack = mockItem(Material.PAPER, 2);
 
         var ok = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);
@@ -213,6 +216,7 @@ class PlacementServiceTest {
         });
 
         Player player = mockPlayer(UUID.randomUUID(), "Steve", GameMode.CREATIVE);
+        service.setPlayerPlacementEnabled(player.getUniqueId(), true);
         var blockedProfile = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), mockItem(Material.BEDROCK, 1));
         assertFalse(blockedProfile.accepted());
         assertEquals(PlacementService.OutcomeReason.PROFILE_NOT_PLACEABLE, blockedProfile.reason());
@@ -224,15 +228,21 @@ class PlacementServiceTest {
         Player player = mockPlayer(playerId, "Steve", GameMode.SURVIVAL);
         ItemStack stack = mockItem(Material.PAPER, 3);
 
+        // Personal placement starts disabled by default while global is enabled
         assertTrue(service.isGlobalEnabled());
-        assertTrue(service.isPlayerPlacementEnabled(playerId));
+        assertFalse(service.isPlayerPlacementEnabled(playerId));
+        var defaultDisabled = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);
+        assertFalse(defaultDisabled.accepted());
+        assertEquals(PlacementService.OutcomeReason.PLAYER_DISABLED, defaultDisabled.reason());
 
-        // Place one item while enabled
+        // Toggle ON allows placement
+        assertTrue(service.togglePlayerPlacementEnabled(playerId));
+        assertTrue(service.isPlayerPlacementEnabled(playerId));
         var placed = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);
         assertTrue(placed.accepted());
         UUID itemId = placed.placedItem().id();
 
-        // Personal toggle OFF blocks placement, preserves interaction, and resets on session clear
+        // Personal toggle OFF blocks placement, preserves interaction, and session clear resets to default (false)
         assertFalse(service.togglePlayerPlacementEnabled(playerId));
         assertFalse(service.isPlayerPlacementEnabled(playerId));
         var playerDisabled = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);
@@ -240,10 +250,13 @@ class PlacementServiceTest {
         assertEquals(PlacementService.OutcomeReason.PLAYER_DISABLED, playerDisabled.reason());
         assertTrue(service.handleInteraction(player, itemId, DecorInteractEvent.Action.ROTATE).accepted());
 
-        service.clearPlayerSession(playerId);
+        service.setPlayerPlacementEnabled(playerId, true);
         assertTrue(service.isPlayerPlacementEnabled(playerId));
+        service.clearPlayerSession(playerId);
+        assertFalse(service.isPlayerPlacementEnabled(playerId));
 
-        // Global toggle OFF blocks both placement and interaction
+        // Global toggle OFF blocks both placement and interaction even when personal toggle is ON
+        service.setPlayerPlacementEnabled(playerId, true);
         assertFalse(service.toggleGlobalEnabled());
         assertFalse(service.isGlobalEnabled());
         var globalDisabledPlace = service.tryPlace(player, supportBlock, BlockFace.UP, new Vec3d(10.5, 65.0, 20.5), stack);

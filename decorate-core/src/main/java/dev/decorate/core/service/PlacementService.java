@@ -56,7 +56,7 @@ public final class PlacementService {
     private final List<ProtectionHook> protectionHooks = new CopyOnWriteArrayList<>();
     private final Map<UUID, PlacementMode> playerModes = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> playerTotalCounts = new ConcurrentHashMap<>();
-    private final Set<UUID> disabledPlacementPlayers = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> enabledPlacementPlayers = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean globalEnabled;
     private volatile DecorateSettings settings;
 
@@ -130,32 +130,32 @@ public final class PlacementService {
 
     public boolean isPlayerPlacementEnabled(UUID playerId) {
         Objects.requireNonNull(playerId, "playerId must not be null");
-        return !disabledPlacementPlayers.contains(playerId);
+        return enabledPlacementPlayers.contains(playerId);
     }
 
     public void setPlayerPlacementEnabled(UUID playerId, boolean enabled) {
         Objects.requireNonNull(playerId, "playerId must not be null");
         if (enabled) {
-            disabledPlacementPlayers.remove(playerId);
+            enabledPlacementPlayers.add(playerId);
         } else {
-            disabledPlacementPlayers.add(playerId);
+            enabledPlacementPlayers.remove(playerId);
         }
     }
 
     public boolean togglePlayerPlacementEnabled(UUID playerId) {
         Objects.requireNonNull(playerId, "playerId must not be null");
-        synchronized (disabledPlacementPlayers) {
-            if (disabledPlacementPlayers.remove(playerId)) {
-                return true;
+        synchronized (enabledPlacementPlayers) {
+            if (enabledPlacementPlayers.remove(playerId)) {
+                return false;
             }
-            disabledPlacementPlayers.add(playerId);
-            return false;
+            enabledPlacementPlayers.add(playerId);
+            return true;
         }
     }
 
     public void clearPlayerSession(UUID playerId) {
         if (playerId != null) {
-            disabledPlacementPlayers.remove(playerId);
+            enabledPlacementPlayers.remove(playerId);
         }
     }
 

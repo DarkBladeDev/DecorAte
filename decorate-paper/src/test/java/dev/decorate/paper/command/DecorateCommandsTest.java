@@ -224,18 +224,21 @@ class DecorateCommandsTest {
 
     @Test
     void executesPersonalAndGlobalToggleCommands() {
-        // Preserve player SNAP mode while toggling placement off and back on
+        // Personal placement starts disabled by default; preserve player SNAP mode across toggles
         commandManager.commandExecutor().executeCommand(player, "decorate snap 8").join();
+        assertFalse(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
+
+        commandManager.commandExecutor().executeCommand(player, "dec toggle").join();
+        assertTrue(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
+        assertEquals(new PlacementMode(PlacementMode.Mode.SNAP, 8), placementService.getPlayerMode(player.getUniqueId()));
+
+        commandManager.commandExecutor().executeCommand(player, "decorate toggle off").join();
+        assertFalse(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
+
+        commandManager.commandExecutor().executeCommand(player, "dec toggle on").join();
         assertTrue(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
 
         commandManager.commandExecutor().executeCommand(player, "dec toggle").join();
-        assertFalse(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
-        assertEquals(new PlacementMode(PlacementMode.Mode.SNAP, 8), placementService.getPlayerMode(player.getUniqueId()));
-
-        commandManager.commandExecutor().executeCommand(player, "decorate toggle on").join();
-        assertTrue(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
-
-        commandManager.commandExecutor().executeCommand(player, "dec toggle off").join();
         assertFalse(placementService.isPlayerPlacementEnabled(player.getUniqueId()));
 
         // Console cannot execute personal toggle, but can execute global toggle

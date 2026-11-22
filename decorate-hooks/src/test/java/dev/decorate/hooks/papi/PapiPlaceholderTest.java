@@ -108,6 +108,10 @@ class PapiPlaceholderTest {
         assertEquals("unlimited", expansion.onPlaceholderRequest(player, "remaining"));
 
         // Personal and global toggle placeholders track state independently
+        assertEquals("false", expansion.onPlaceholderRequest(player, "enabled"));
+        assertEquals("true", expansion.onPlaceholderRequest(player, "enabled_global"));
+
+        placementService.setPlayerPlacementEnabled(ownerId, true);
         assertEquals("true", expansion.onPlaceholderRequest(player, "enabled"));
         assertEquals("true", expansion.onPlaceholderRequest(player, "enabled_global"));
 

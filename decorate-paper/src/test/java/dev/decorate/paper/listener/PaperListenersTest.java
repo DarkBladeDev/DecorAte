@@ -130,6 +130,8 @@ class PaperListenersTest {
         RayTraceResult ray = new RayTraceResult(new Vector(4.35, 65.0, 8.65), block, BlockFace.UP);
         when(player.rayTraceBlocks(anyDouble(), any())).thenReturn(ray);
 
+        placementService.setPlayerPlacementEnabled(player.getUniqueId(), true);
+
         PlayerInteractEvent interactEvent = new PlayerInteractEvent(
                 player, Action.RIGHT_CLICK_BLOCK, handItem, block, BlockFace.UP, EquipmentSlot.HAND
         );
@@ -199,7 +201,18 @@ class PaperListenersTest {
         RayTraceResult ray = new RayTraceResult(new Vector(4.35, 65.0, 8.65), block, BlockFace.UP);
         when(player.rayTraceBlocks(anyDouble(), any())).thenReturn(ray);
 
-        // Seed one placed item while enabled
+        // 0. Personal toggle starts disabled by default: vanilla interact is uncancelled without raytracing
+        assertFalse(placementService.isPlayerPlacementEnabled(playerId));
+        PlayerInteractEvent defaultOffEvent = new PlayerInteractEvent(
+                player, Action.RIGHT_CLICK_BLOCK, handItem, block, BlockFace.UP, EquipmentSlot.HAND
+        );
+        triggerListener.onPlayerInteract(defaultOffEvent);
+        assertFalse(defaultOffEvent.useInteractedBlock() == org.bukkit.event.Event.Result.DENY);
+        assertEquals(0, registry.countBySupportBlock(new BlockCoordinate("world", 4, 64, 8)));
+        assertEquals(2, amt.get());
+
+        // Seed one placed item after enabling personal placement
+        placementService.setPlayerPlacementEnabled(playerId, true);
         PlacedItem seeded = placementService.tryPlace(player, block, BlockFace.UP, new Vec3d(4.35, 65.0, 8.65), handItem)
                 .placedItem();
         assertEquals(1, amt.get());
@@ -244,10 +257,10 @@ class PaperListenersTest {
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(playerId);
 
-        placementService.setPlayerPlacementEnabled(playerId, false);
-        assertFalse(placementService.isPlayerPlacementEnabled(playerId));
+        placementService.setPlayerPlacementEnabled(playerId, true);
+        assertTrue(placementService.isPlayerPlacementEnabled(playerId));
 
         listener.onPlayerQuit(new PlayerQuitEvent(player, net.kyori.adventure.text.Component.empty(), PlayerQuitEvent.QuitReason.DISCONNECTED));
-        assertTrue(placementService.isPlayerPlacementEnabled(playerId));
+        assertFalse(placementService.isPlayerPlacementEnabled(playerId));
     }
 }
