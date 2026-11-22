@@ -18,6 +18,7 @@ import dev.decorate.hooks.papi.PapiPlaceholderService;
 import dev.decorate.hooks.worldguard.WorldGuardProtectionHook;
 import dev.decorate.packet.PacketEventsDisplayRenderer;
 import dev.decorate.packet.PacketInteractionListener;
+import dev.decorate.paper.bootstrap.RuntimeLibraryLoader;
 import dev.decorate.paper.command.DecorateCommands;
 import dev.decorate.paper.config.DecorAteConfigLoader;
 import dev.decorate.paper.config.MessageService;
@@ -43,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 /**
  * Paper 1.21.8 plugin entry point for DecorAte.
@@ -70,6 +72,20 @@ public final class DecorAtePlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        try {
+            RuntimeLibraryLoader.loadStorageLibraries(this);
+        } catch (Exception ex) {
+            Path libsDir = getDataFolder().toPath().resolve("libs").toAbsolutePath();
+            getLogger().log(
+                    Level.SEVERE,
+                    "Failed to resolve runtime storage dependencies. Check network connectivity or place the required JARs in "
+                            + libsDir + ": " + ex.getMessage(),
+                    ex
+            );
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
         saveDefaultConfig();
         saveResourceIfMissing("messages.yml");
         extractExampleProfileIfMissing();

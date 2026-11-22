@@ -15,6 +15,7 @@ dependencies {
 
     implementation(libs.cloud.paper)
     implementation(libs.cloud.annotations)
+    implementation(libs.libby.bukkit)
     annotationProcessor(libs.cloud.annotations)
 
     testImplementation(libs.paper.api)
@@ -30,6 +31,12 @@ tasks.processResources {
     filesMatching("plugin.yml") {
         expand("version" to project.version.toString())
     }
+    filesMatching("runtime-libraries.properties") {
+        expand(
+            "hikariVersion" to libs.versions.hikari.get(),
+            "sqliteVersion" to libs.versions.sqlite.get(),
+        )
+    }
 }
 
 tasks.shadowJar {
@@ -37,6 +44,8 @@ tasks.shadowJar {
     archiveBaseName.set("DecorAte")
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     relocate("org.incendo.cloud", "dev.decorate.libs.cloud")
+    relocate("net.byteflux.libby", "dev.decorate.libs.libby")
+    relocate("com.zaxxer.hikari", "dev.decorate.libs.hikari")
     mergeServiceFiles()
 }
 

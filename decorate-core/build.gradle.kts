@@ -1,9 +1,12 @@
 dependencies {
     api(project(":decorate-api"))
     compileOnly(libs.paper.api)
-    implementation(libs.sqlite.jdbc)
+    compileOnly(libs.sqlite.jdbc)
+    compileOnly(libs.hikaricp)
 
     testImplementation(libs.paper.api)
+    testImplementation(libs.sqlite.jdbc)
+    testImplementation(libs.hikaricp)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.mockito.core)

@@ -4,7 +4,7 @@ plugins {
 
 allprojects {
     group = "dev.decorate"
-    version = "0.2.0"
+    version = "0.3.0"
 
     repositories {
         mavenCentral()
@@ -19,6 +19,9 @@ allprojects {
         }
         maven("https://maven.enginehub.org/repo/") {
             name = "enginehub"
+        }
+        maven("https://repo.alessiodp.com/releases/") {
+            name = "alessiodp"
         }
     }
 }

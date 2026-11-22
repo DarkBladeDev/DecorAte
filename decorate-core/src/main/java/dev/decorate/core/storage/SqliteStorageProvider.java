@@ -1,5 +1,7 @@
 package dev.decorate.core.storage;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import dev.decorate.api.model.BlockCoordinate;
 import dev.decorate.api.model.ChunkCoordinate;
 import dev.decorate.api.model.DisplayTransformType;
@@ -10,12 +12,12 @@ import dev.decorate.api.model.SurfacePose;
 import dev.decorate.api.model.Vec3d;
 import dev.decorate.api.model.Vec3f;
 import dev.decorate.api.spi.StorageProvider;
+import org.sqlite.SQLiteDataSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -31,8 +33,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Embedded SQLite {@link StorageProvider} using WAL mode and a dedicated single-thread executor
- * for safe asynchronous chunk-indexed persistence.
+ * Embedded SQLite {@link StorageProvider} backed by a {@link HikariDataSource} pool over
+ * {@link SQLiteDataSource} in WAL mode and a dedicated single-thread executor for safe
+ * asynchronous chunk-indexed persistence.
  */
 public final class SqliteStorageProvider implements StorageProvider {
 
@@ -69,7 +72,7 @@ public final class SqliteStorageProvider implements StorageProvider {
 
     private final Path databasePath;
     private final ExecutorService executor;
-    private volatile Connection connection;
+    private volatile HikariDataSource dataSource;
 
     public SqliteStorageProvider(Path databasePath) {
         this.databasePath = Objects.requireNonNull(databasePath, "databasePath must not be null");
@@ -83,22 +86,39 @@ public final class SqliteStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Void> init() {
         return CompletableFuture.runAsync(() -> {
+            HikariDataSource ds = null;
             try {
                 Path parent = databasePath.getParent();
                 if (parent != null) {
                     Files.createDirectories(parent);
                 }
-                Connection conn = DriverManager.getConnection("jdbc:sqlite:" + databasePath.toAbsolutePath());
-                try (Statement stmt = conn.createStatement()) {
+                SQLiteDataSource sqliteDataSource = new SQLiteDataSource();
+                sqliteDataSource.setUrl("jdbc:sqlite:" + databasePath.toAbsolutePath());
+                sqliteDataSource.setJournalMode("WAL");
+                sqliteDataSource.setSynchronous("NORMAL");
+                sqliteDataSource.setBusyTimeout(5000);
+
+                HikariConfig hikariConfig = new HikariConfig();
+                hikariConfig.setPoolName("DecorAte-SQLite");
+                hikariConfig.setDataSource(sqliteDataSource);
+                hikariConfig.setMaximumPoolSize(1);
+                hikariConfig.setConnectionTimeout(10_000L);
+
+                ds = new HikariDataSource(hikariConfig);
+                try (Connection conn = ds.getConnection(); Statement stmt = conn.createStatement()) {
                     stmt.execute("PRAGMA journal_mode=WAL;");
                     stmt.execute("PRAGMA synchronous=NORMAL;");
+                    stmt.execute("PRAGMA busy_timeout=5000;");
                     stmt.execute(CREATE_TABLE_SQL);
                     stmt.execute("CREATE INDEX IF NOT EXISTS idx_placed_chunk ON placed_items (world, chunk_x, chunk_z);");
                     stmt.execute("CREATE INDEX IF NOT EXISTS idx_placed_owner ON placed_items (owner_uuid);");
                     stmt.execute("CREATE INDEX IF NOT EXISTS idx_placed_support ON placed_items (world, support_x, support_y, support_z);");
                 }
-                this.connection = conn;
+                this.dataSource = ds;
             } catch (IOException | SQLException ex) {
+                if (ds != null) {
+                    ds.close();
+                }
                 throw new CompletionException("Failed to initialize SQLite storage", ex);
             }
         }, executor);
@@ -107,14 +127,10 @@ public final class SqliteStorageProvider implements StorageProvider {
     @Override
     public CompletableFuture<Void> close() {
         return CompletableFuture.runAsync(() -> {
-            Connection conn = this.connection;
-            this.connection = null;
-            if (conn != null) {
-                try {
-                    conn.close();
-                } catch (SQLException ex) {
-                    throw new CompletionException("Failed to close SQLite connection", ex);
-                }
+            HikariDataSource ds = this.dataSource;
+            this.dataSource = null;
+            if (ds != null) {
+                ds.close();
             }
         }, executor).whenComplete((ignored, err) -> {
             executor.shutdown();
@@ -130,9 +146,9 @@ public final class SqliteStorageProvider implements StorageProvider {
     public CompletableFuture<List<PlacedItem>> loadChunk(ChunkCoordinate chunk) {
         Objects.requireNonNull(chunk, "chunk must not be null");
         return CompletableFuture.supplyAsync(() -> {
-            Connection conn = requireConnection();
             String sql = "SELECT * FROM placed_items WHERE world = ? AND chunk_x = ? AND chunk_z = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            try (Connection conn = requireDataSource().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, chunk.world());
                 ps.setInt(2, chunk.x());
                 ps.setInt(3, chunk.z());
@@ -153,7 +169,6 @@ public final class SqliteStorageProvider implements StorageProvider {
     public CompletableFuture<Void> save(PlacedItem item) {
         Objects.requireNonNull(item, "item must not be null");
         return CompletableFuture.runAsync(() -> {
-            Connection conn = requireConnection();
             String sql = """
                     INSERT INTO placed_items (
                         id, world, chunk_x, chunk_z,
@@ -185,7 +200,8 @@ public final class SqliteStorageProvider implements StorageProvider {
             ChunkCoordinate chunk = item.chunk();
             SurfacePose pose = item.pose();
             BlockCoordinate support = item.supportBlock();
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            try (Connection conn = requireDataSource().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, item.id().toString());
                 ps.setString(2, item.world());
                 ps.setInt(3, chunk.x());
@@ -223,8 +239,8 @@ public final class SqliteStorageProvider implements StorageProvider {
     public CompletableFuture<Void> delete(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
         return CompletableFuture.runAsync(() -> {
-            Connection conn = requireConnection();
-            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM placed_items WHERE id = ?")) {
+            try (Connection conn = requireDataSource().getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM placed_items WHERE id = ?")) {
                 ps.setString(1, id.toString());
                 ps.executeUpdate();
             } catch (SQLException ex) {
@@ -237,9 +253,9 @@ public final class SqliteStorageProvider implements StorageProvider {
     public CompletableFuture<Void> deleteBySupportBlock(BlockCoordinate supportBlock) {
         Objects.requireNonNull(supportBlock, "supportBlock must not be null");
         return CompletableFuture.runAsync(() -> {
-            Connection conn = requireConnection();
             String sql = "DELETE FROM placed_items WHERE world = ? AND support_x = ? AND support_y = ? AND support_z = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            try (Connection conn = requireDataSource().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, supportBlock.world());
                 ps.setInt(2, supportBlock.x());
                 ps.setInt(3, supportBlock.y());
@@ -255,9 +271,9 @@ public final class SqliteStorageProvider implements StorageProvider {
     public CompletableFuture<Void> deleteByChunk(ChunkCoordinate chunk) {
         Objects.requireNonNull(chunk, "chunk must not be null");
         return CompletableFuture.runAsync(() -> {
-            Connection conn = requireConnection();
             String sql = "DELETE FROM placed_items WHERE world = ? AND chunk_x = ? AND chunk_z = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            try (Connection conn = requireDataSource().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, chunk.world());
                 ps.setInt(2, chunk.x());
                 ps.setInt(3, chunk.z());
@@ -272,8 +288,8 @@ public final class SqliteStorageProvider implements StorageProvider {
     public CompletableFuture<Integer> countByOwner(UUID ownerUuid) {
         Objects.requireNonNull(ownerUuid, "ownerUuid must not be null");
         return CompletableFuture.supplyAsync(() -> {
-            Connection conn = requireConnection();
-            try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM placed_items WHERE owner_uuid = ?")) {
+            try (Connection conn = requireDataSource().getConnection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM placed_items WHERE owner_uuid = ?")) {
                 ps.setString(1, ownerUuid.toString());
                 try (ResultSet rs = ps.executeQuery()) {
                     return rs.next() ? rs.getInt(1) : 0;
@@ -289,9 +305,9 @@ public final class SqliteStorageProvider implements StorageProvider {
         Objects.requireNonNull(ownerUuid, "ownerUuid must not be null");
         Objects.requireNonNull(world, "world must not be null");
         return CompletableFuture.supplyAsync(() -> {
-            Connection conn = requireConnection();
             String sql = "SELECT COUNT(*) FROM placed_items WHERE owner_uuid = ? AND world = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            try (Connection conn = requireDataSource().getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, ownerUuid.toString());
                 ps.setString(2, world);
                 try (ResultSet rs = ps.executeQuery()) {
@@ -303,12 +319,12 @@ public final class SqliteStorageProvider implements StorageProvider {
         }, executor);
     }
 
-    private Connection requireConnection() {
-        Connection conn = this.connection;
-        if (conn == null) {
+    private HikariDataSource requireDataSource() {
+        HikariDataSource ds = this.dataSource;
+        if (ds == null || ds.isClosed()) {
             throw new IllegalStateException("SqliteStorageProvider is not initialized or already closed");
         }
-        return conn;
+        return ds;
     }
 
     private static PlacedItem mapRow(ResultSet rs) throws SQLException {

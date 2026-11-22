@@ -15,9 +15,13 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.RejectedExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class SqliteStorageProviderTest {
 
@@ -34,6 +38,12 @@ class SqliteStorageProviderTest {
         PlacedItem item3 = sampleItem(ownerB, "world_nether", 20, 70, 20, 20.5, 71.02, 20.5);
 
         SqliteStorageProvider storage = new SqliteStorageProvider(dbFile);
+        CompletionException uninitEx = assertThrows(
+                CompletionException.class,
+                () -> storage.loadChunk(new ChunkCoordinate("world", 0, 0)).join()
+        );
+        assertInstanceOf(IllegalStateException.class, uninitEx.getCause());
+
         storage.init().join();
         storage.save(item1).join();
         storage.save(item2).join();
@@ -60,6 +70,11 @@ class SqliteStorageProviderTest {
         reopened.deleteByChunk(new ChunkCoordinate("world_nether", 1, 1)).join();
         assertEquals(0, reopened.countByOwner(ownerB).join());
         reopened.close().join();
+
+        assertThrows(
+                RejectedExecutionException.class,
+                () -> reopened.loadChunk(new ChunkCoordinate("world", 0, 0))
+        );
     }
 
     private static PlacedItem sampleItem(UUID owner, String world, int bx, int by, int bz, double x, double y, double z) {

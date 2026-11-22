@@ -7,6 +7,8 @@ cloud-paper = "2.0.1"
 cloud-annotations = "2.1.0"
 worldguard = "7.0.14"
 sqlite = "3.54.1.0"
+hikari = "6.3.3"
+libby = "1.3.2"
 junit = "5.11.4"
 mockito = "5.15.2"
 shadow = "9.6.1"
@@ -19,6 +21,8 @@ cloud-paper = { module = "org.incendo:cloud-paper", version.ref = "cloud-paper" 
 cloud-annotations = { module = "org.incendo:cloud-annotations", version.ref = "cloud-annotations" }
 worldguard-bukkit = { module = "com.sk89q.worldguard:worldguard-bukkit", version.ref = "worldguard" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
+hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+libby-bukkit = { module = "net.byteflux:libby-bukkit", version.ref = "libby" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
