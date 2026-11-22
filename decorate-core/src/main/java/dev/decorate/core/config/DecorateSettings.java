@@ -18,6 +18,10 @@ import dev.decorate.api.model.PlacementMode;
  * @param defaultPlacementMode default player placement mode (FREE vs SNAP)
  * @param requireSneakForPlace whether placing requires sneaking (Shift + Right Click)
  * @param globalPlacementEnabled whether placement and item interaction are globally enabled on startup/reload
+ * @param hoverDisplayNameEnabled whether custom-named placed items display a floating label when looked at
+ * @param hoverCheckIntervalTicks interval in server ticks between targeted-item hover checks
+ * @param hoverDisplayScale uniform scale applied to the virtual hover text display
+ * @param hoverVerticalOffset minimum vertical offset applied when positioning the hover text display
  */
 public record DecorateSettings(
         double maxPlaceDistance,
@@ -32,8 +36,48 @@ public record DecorateSettings(
         int renderChunkRadius,
         PlacementMode defaultPlacementMode,
         boolean requireSneakForPlace,
-        boolean globalPlacementEnabled
+        boolean globalPlacementEnabled,
+        boolean hoverDisplayNameEnabled,
+        int hoverCheckIntervalTicks,
+        float hoverDisplayScale,
+        double hoverVerticalOffset
 ) {
+
+    public DecorateSettings(
+            double maxPlaceDistance,
+            int maxItemsPerBlock,
+            int maxItemsPerChunk,
+            int defaultPlayerLimit,
+            float rotationStepDegrees,
+            boolean autoCleanupOnSupportBreak,
+            boolean dropSurvivalOnAutoCleanup,
+            boolean creativeDropOnPickup,
+            boolean ownerOnlyInteraction,
+            int renderChunkRadius,
+            PlacementMode defaultPlacementMode,
+            boolean requireSneakForPlace,
+            boolean globalPlacementEnabled
+    ) {
+        this(
+                maxPlaceDistance,
+                maxItemsPerBlock,
+                maxItemsPerChunk,
+                defaultPlayerLimit,
+                rotationStepDegrees,
+                autoCleanupOnSupportBreak,
+                dropSurvivalOnAutoCleanup,
+                creativeDropOnPickup,
+                ownerOnlyInteraction,
+                renderChunkRadius,
+                defaultPlacementMode,
+                requireSneakForPlace,
+                globalPlacementEnabled,
+                true,
+                2,
+                0.75f,
+                0.28
+        );
+    }
 
     /** Sensible production defaults. */
     public static final DecorateSettings DEFAULTS = new DecorateSettings(
@@ -49,6 +93,10 @@ public record DecorateSettings(
             4,
             PlacementMode.DEFAULT_FREE,
             true,
-            true
+            true,
+            true,
+            2,
+            0.75f,
+            0.28
     );
 }

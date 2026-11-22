@@ -26,6 +26,7 @@ import dev.decorate.paper.listener.DecorInteractionHandler;
 import dev.decorate.paper.listener.PlacementTriggerListener;
 import dev.decorate.paper.listener.SupportBlockListener;
 import dev.decorate.paper.listener.VisibilityLifecycleListener;
+import dev.decorate.paper.lookup.HoverDisplayNameController;
 import dev.decorate.paper.lookup.TargetedItemLookup;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -35,6 +36,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 import org.incendo.cloud.annotations.AnnotationParser;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.LegacyPaperCommandManager;
@@ -60,6 +62,8 @@ public final class DecorAtePlugin extends JavaPlugin {
     private MessageService messageService;
     private PacketInteractionListener packetInteractionListener;
     private DecorAteExpansion papiExpansion;
+    private HoverDisplayNameController hoverDisplayNameController;
+    private BukkitTask hoverTask;
     private boolean worldGuardAvailable;
 
     @Override
@@ -143,6 +147,10 @@ public final class DecorAtePlugin extends JavaPlugin {
         pm.registerEvents(new SupportBlockListener(placementService), this);
         pm.registerEvents(new VisibilityLifecycleListener(visibilityManager, storage, placementService, mainThread), this);
 
+        this.hoverDisplayNameController = new HoverDisplayNameController(targetLookup, renderer, settings);
+        pm.registerEvents(hoverDisplayNameController, this);
+        scheduleHoverTask(settings);
+
         registerCommands(targetLookup);
 
         DecorAteApi api = new DecorAteApiImpl(
@@ -165,6 +173,13 @@ public final class DecorAtePlugin extends JavaPlugin {
         DecorAteProvider.unregister();
         getServer().getServicesManager().unregisterAll(this);
 
+        if (hoverTask != null) {
+            hoverTask.cancel();
+            hoverTask = null;
+        }
+        if (hoverDisplayNameController != null) {
+            hoverDisplayNameController.clearCache();
+        }
         if (papiExpansion != null) {
             papiExpansion.unregister();
         }
@@ -192,9 +207,29 @@ public final class DecorAtePlugin extends JavaPlugin {
         visibilityManager.setChunkRadius(settings.renderChunkRadius());
         profileResolver.setFallbackProfile(DecorAteConfigLoader.loadFallbackProfile(getConfig()));
         profileResolver.reload();
+        if (hoverDisplayNameController != null) {
+            hoverDisplayNameController.updateSettings(settings, Bukkit.getOnlinePlayers());
+            scheduleHoverTask(settings);
+        }
 
         YamlConfiguration messagesYaml = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "messages.yml"));
         messageService.reload(messagesYaml);
+    }
+
+    private void scheduleHoverTask(DecorateSettings settings) {
+        if (hoverTask != null) {
+            hoverTask.cancel();
+            hoverTask = null;
+        }
+        if (settings.hoverDisplayNameEnabled() && hoverDisplayNameController != null) {
+            long interval = Math.max(1L, settings.hoverCheckIntervalTicks());
+            this.hoverTask = Bukkit.getScheduler().runTaskTimer(
+                    this,
+                    () -> hoverDisplayNameController.tick(Bukkit.getOnlinePlayers()),
+                    interval,
+                    interval
+            );
+        }
     }
 
     private void registerCommands(TargetedItemLookup targetLookup) {

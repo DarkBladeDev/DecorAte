@@ -4,8 +4,10 @@ import dev.decorate.api.model.PlacedItem;
 import dev.decorate.api.model.Vec3d;
 import dev.decorate.core.geometry.PlacementGeometry;
 import dev.decorate.core.registry.SpatialRegistry;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.List;
@@ -38,14 +40,19 @@ public final class TargetedItemLookup {
         Vec3d origin = new Vec3d(eye.getX(), eye.getY(), eye.getZ());
         Vec3d rayDir = new Vec3d(dir.getX(), dir.getY(), dir.getZ());
 
+        double effectiveMaxDistance = resolveEffectiveMaxDistance(player, eye, dir);
         List<PlacedItem> candidates = registry.findInRadius(
                 player.getWorld().getName(),
-                origin.add(rayDir.x() * (maxDistance * 0.5), rayDir.y() * (maxDistance * 0.5), rayDir.z() * (maxDistance * 0.5)),
-                maxDistance + 1.5
+                origin.add(
+                        rayDir.x() * (effectiveMaxDistance * 0.5),
+                        rayDir.y() * (effectiveMaxDistance * 0.5),
+                        rayDir.z() * (effectiveMaxDistance * 0.5)
+                ),
+                effectiveMaxDistance + 1.5
         );
 
         PlacedItem closest = null;
-        double closestT = maxDistance;
+        double closestT = effectiveMaxDistance;
 
         for (PlacedItem item : candidates) {
             Vec3d anchor = PlacementGeometry.computeInteractionAnchor(item.pose());
@@ -64,6 +71,21 @@ public final class TargetedItemLookup {
             }
         }
         return Optional.ofNullable(closest);
+    }
+
+    private double resolveEffectiveMaxDistance(Player player, Location eye, Vector dir) {
+        RayTraceResult blockHit = player.getWorld().rayTraceBlocks(
+                eye,
+                dir,
+                maxDistance,
+                FluidCollisionMode.NEVER,
+                true
+        );
+        if (blockHit == null) {
+            return maxDistance;
+        }
+        double blockDistance = blockHit.getHitPosition().distance(eye.toVector());
+        return Math.min(maxDistance, blockDistance + 1e-4);
     }
 
     static double intersectRayAabb(

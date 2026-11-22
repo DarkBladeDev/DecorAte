@@ -1,6 +1,8 @@
 package dev.decorate.api.spi;
 
 import dev.decorate.api.model.PlacedItem;
+import dev.decorate.api.model.Vec3d;
+import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 
 import java.util.Optional;
@@ -70,4 +72,34 @@ public interface DisplayRenderer {
      * @return matching placed item UUID if tracked
      */
     Optional<UUID> resolveItemByVirtualEntityId(int entityId);
+
+    /**
+     * Displays or replaces the per-player floating hover label for a targeted placed item.
+     *
+     * @param player observing player
+     * @param itemId targeted placed item UUID
+     * @param text custom display name component
+     * @param position world coordinates for the virtual text display
+     * @param scale uniform display scale
+     */
+    default void showHoverText(Player player, UUID itemId, Component text, Vec3d position, float scale) {
+    }
+
+    /**
+     * Destroys any active floating hover label currently displayed for the player.
+     *
+     * @param player observing player
+     */
+    default void clearHoverText(Player player) {
+    }
+
+    /**
+     * Returns whether at least one placed item is currently tracked as visible to the player.
+     *
+     * @param player observing player
+     * @return {@code true} if the player currently has visible placed items
+     */
+    default boolean hasVisibleItems(Player player) {
+        return true;
+    }
 }

@@ -110,4 +110,49 @@ class PlacementGeometryTest {
         assertTrue(wallAnchor.x() > wall.exactPosition().x(), "East wall anchor must shift outward along +X");
         assertEquals(64.3, wallAnchor.y(), 1e-6);
     }
+
+    @Test
+    void hoverLabelPositionAdaptsToFloorWallAndCeilingFaces() {
+        SurfacePose floor = new SurfacePose(
+                new Vec3d(0.5, 65.02, 0.5),
+                SurfaceFace.UP,
+                0.0f,
+                PoseMode.FLAT,
+                new Vec3f(0.5f, 0.5f, 0.5f),
+                DisplayTransformType.FIXED,
+                0.35f,
+                0.35f
+        );
+        Vec3d floorLabel = PlacementGeometry.computeHoverLabelPosition(floor, 0.28);
+        assertTrue(floorLabel.y() > floor.exactPosition().y(), "Floor label must sit above item");
+        assertEquals(floor.exactPosition().x(), floorLabel.x(), 1e-6);
+        assertEquals(floor.exactPosition().z(), floorLabel.z(), 1e-6);
+
+        SurfacePose wall = new SurfacePose(
+                new Vec3d(1.02, 64.5, 0.5),
+                SurfaceFace.EAST,
+                0.0f,
+                PoseMode.FLAT,
+                new Vec3f(0.5f, 0.5f, 0.5f),
+                DisplayTransformType.FIXED,
+                0.35f,
+                0.35f
+        );
+        Vec3d wallLabel = PlacementGeometry.computeHoverLabelPosition(wall, 0.28);
+        assertTrue(wallLabel.y() > wall.exactPosition().y(), "Wall label must sit above item");
+        assertTrue(wallLabel.x() > wall.exactPosition().x(), "East wall label must offset away from wall");
+
+        SurfacePose ceiling = new SurfacePose(
+                new Vec3d(0.5, 63.98, 0.5),
+                SurfaceFace.DOWN,
+                0.0f,
+                PoseMode.FLAT,
+                new Vec3f(0.5f, 0.5f, 0.5f),
+                DisplayTransformType.FIXED,
+                0.35f,
+                0.35f
+        );
+        Vec3d ceilingLabel = PlacementGeometry.computeHoverLabelPosition(ceiling, 0.28);
+        assertTrue(ceilingLabel.y() < ceiling.exactPosition().y(), "Ceiling label must sit below item");
+    }
 }

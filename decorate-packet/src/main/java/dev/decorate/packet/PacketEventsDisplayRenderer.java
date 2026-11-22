@@ -12,6 +12,7 @@ import dev.decorate.api.model.Vec3d;
 import dev.decorate.api.spi.DisplayRenderer;
 import dev.decorate.core.geometry.PlacementGeometry;
 import io.github.retrooper.packetevents.util.SpigotReflectionUtil;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -43,6 +44,7 @@ public final class PacketEventsDisplayRenderer implements DisplayRenderer {
     private final Map<Integer, UUID> itemByInteractionEntityId = new ConcurrentHashMap<>();
     private final Map<UUID, Set<UUID>> viewersByItem = new ConcurrentHashMap<>();
     private final Map<UUID, Set<UUID>> visibleItemsByPlayer = new ConcurrentHashMap<>();
+    private final Map<UUID, ActiveHoverLabel> hoverLabelsByPlayer = new ConcurrentHashMap<>();
 
     public PacketEventsDisplayRenderer(BiPredicate<Player, PlacedItem> observerFilter) {
         this(
@@ -139,6 +141,7 @@ public final class PacketEventsDisplayRenderer implements DisplayRenderer {
 
     @Override
     public void destroyForPlayer(Player player, UUID itemId) {
+        clearHoverTextIfMatching(player, itemId);
         Set<UUID> playerItems = visibleItemsByPlayer.get(player.getUniqueId());
         if (playerItems == null || !playerItems.remove(itemId)) {
             return;
@@ -155,22 +158,30 @@ public final class PacketEventsDisplayRenderer implements DisplayRenderer {
 
     @Override
     public void destroyAllForPlayer(Player player) {
+        ActiveHoverLabel hoverLabel = hoverLabelsByPlayer.remove(player.getUniqueId());
         Set<UUID> playerItems = visibleItemsByPlayer.remove(player.getUniqueId());
-        if (playerItems == null || playerItems.isEmpty()) {
+        int itemCount = playerItems == null ? 0 : playerItems.size();
+        int extraHover = hoverLabel == null ? 0 : 1;
+        if (itemCount == 0 && extraHover == 0) {
             return;
         }
-        int[] entityIds = new int[playerItems.size() * 2];
+        int[] entityIds = new int[itemCount * 2 + extraHover];
         int idx = 0;
-        for (UUID itemId : playerItems) {
-            Set<UUID> viewers = viewersByItem.get(itemId);
-            if (viewers != null) {
-                viewers.remove(player.getUniqueId());
+        if (playerItems != null) {
+            for (UUID itemId : playerItems) {
+                Set<UUID> viewers = viewersByItem.get(itemId);
+                if (viewers != null) {
+                    viewers.remove(player.getUniqueId());
+                }
+                VirtualEntityPair pair = entitiesByItem.get(itemId);
+                if (pair != null) {
+                    entityIds[idx++] = pair.displayEntityId();
+                    entityIds[idx++] = pair.interactionEntityId();
+                }
             }
-            VirtualEntityPair pair = entitiesByItem.get(itemId);
-            if (pair != null) {
-                entityIds[idx++] = pair.displayEntityId();
-                entityIds[idx++] = pair.interactionEntityId();
-            }
+        }
+        if (hoverLabel != null) {
+            entityIds[idx++] = hoverLabel.entityId();
         }
         if (idx > 0) {
             int[] trimmed = idx == entityIds.length ? entityIds : java.util.Arrays.copyOf(entityIds, idx);
@@ -207,17 +218,81 @@ public final class PacketEventsDisplayRenderer implements DisplayRenderer {
             itemByInteractionEntityId.remove(pair.interactionEntityId());
         }
         Set<UUID> viewers = viewersByItem.remove(itemId);
-        if (viewers == null || viewers.isEmpty() || pair == null) {
-            return;
-        }
-        for (Player player : onlinePlayersSupplier.get()) {
-            if (viewers.contains(player.getUniqueId())) {
+        Collection<? extends Player> onlinePlayers = onlinePlayersSupplier.get();
+        for (Player player : onlinePlayers) {
+            clearHoverTextIfMatching(player, itemId);
+            if (pair != null && viewers != null && viewers.contains(player.getUniqueId())) {
                 Set<UUID> playerItems = visibleItemsByPlayer.get(player.getUniqueId());
                 if (playerItems != null) {
                     playerItems.remove(itemId);
                 }
                 packetSender.send(player, new WrapperPlayServerDestroyEntities(pair.displayEntityId(), pair.interactionEntityId()));
             }
+        }
+    }
+
+    @Override
+    public void showHoverText(Player player, UUID itemId, Component text, Vec3d position, float scale) {
+        Objects.requireNonNull(player, "player must not be null");
+        Objects.requireNonNull(itemId, "itemId must not be null");
+        Objects.requireNonNull(text, "text must not be null");
+        Objects.requireNonNull(position, "position must not be null");
+
+        ActiveHoverLabel current = hoverLabelsByPlayer.get(player.getUniqueId());
+        if (current != null && current.itemId().equals(itemId)) {
+            return;
+        }
+        if (current != null) {
+            packetSender.send(player, new WrapperPlayServerDestroyEntities(current.entityId()));
+        }
+
+        int labelEntityId = entityIdSupplier.getAsInt();
+        hoverLabelsByPlayer.put(player.getUniqueId(), new ActiveHoverLabel(itemId, labelEntityId));
+
+        WrapperPlayServerSpawnEntity spawnText = new WrapperPlayServerSpawnEntity(
+                labelEntityId,
+                Optional.of(UUID.randomUUID()),
+                EntityTypes.TEXT_DISPLAY,
+                new Vector3d(position.x(), position.y(), position.z()),
+                0.0f,
+                0.0f,
+                0.0f,
+                0,
+                Optional.empty()
+        );
+        WrapperPlayServerEntityMetadata textMeta = new WrapperPlayServerEntityMetadata(
+                labelEntityId,
+                metadataBuilder.buildTextDisplayMetadata(text, scale)
+        );
+        packetSender.send(player, spawnText);
+        packetSender.send(player, textMeta);
+    }
+
+    @Override
+    public void clearHoverText(Player player) {
+        if (player == null) {
+            return;
+        }
+        ActiveHoverLabel removed = hoverLabelsByPlayer.remove(player.getUniqueId());
+        if (removed != null) {
+            packetSender.send(player, new WrapperPlayServerDestroyEntities(removed.entityId()));
+        }
+    }
+
+    @Override
+    public boolean hasVisibleItems(Player player) {
+        if (player == null) {
+            return false;
+        }
+        Set<UUID> items = visibleItemsByPlayer.get(player.getUniqueId());
+        return items != null && !items.isEmpty();
+    }
+
+    private void clearHoverTextIfMatching(Player player, UUID itemId) {
+        ActiveHoverLabel current = hoverLabelsByPlayer.get(player.getUniqueId());
+        if (current != null && current.itemId().equals(itemId)
+                && hoverLabelsByPlayer.remove(player.getUniqueId(), current)) {
+            packetSender.send(player, new WrapperPlayServerDestroyEntities(current.entityId()));
         }
     }
 
@@ -246,6 +321,12 @@ public final class PacketEventsDisplayRenderer implements DisplayRenderer {
             UUID displayUuid,
             int interactionEntityId,
             UUID interactionUuid
+    ) {
+    }
+
+    private record ActiveHoverLabel(
+            UUID itemId,
+            int entityId
     ) {
     }
 }

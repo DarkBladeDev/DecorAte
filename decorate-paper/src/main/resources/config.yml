@@ -38,6 +38,15 @@ support-block:
 visibility:
   # Radius in chunks around each player to send PacketEvents display entities
   render-chunk-radius: 4
+  hover-display-name:
+    # Show a floating TEXT_DISPLAY with the item's custom display name while looking at it
+    enabled: true
+    # Interval in ticks between targeted-item hover checks
+    check-interval-ticks: 2
+    # Uniform scale of the floating TEXT_DISPLAY
+    scale: 0.75
+    # Minimum vertical offset (in blocks) from the item center
+    vertical-offset: 0.28
 
 defaults:
   display_transform: FIXED

@@ -22,6 +22,7 @@ import dev.decorate.api.model.SurfaceFace;
 import dev.decorate.api.model.SurfacePose;
 import dev.decorate.api.model.Vec3d;
 import dev.decorate.api.model.Vec3f;
+import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -112,6 +113,101 @@ class PacketEventsDisplayRendererTest {
         assertTrue(renderer.resolveItemByVirtualEntityId(interactionSpawn.getEntityId()).isEmpty());
         WrapperPlayServerDestroyEntities destroy = assertInstanceOf(WrapperPlayServerDestroyEntities.class, sent.get(4));
         assertEquals(2, destroy.getEntityIds().length);
+    }
+
+    @Test
+    void buildsExpectedTextDisplayMetadataWithVanillaNameplateStyle() {
+        PacketMetadataBuilder builder = new PacketMetadataBuilder(bytes -> null);
+        Component text = Component.text("Royal Mug");
+        List<EntityData<?>> meta = builder.buildTextDisplayMetadata(text, 0.75f);
+
+        assertEquals(new Vector3f(0.75f, 0.75f, 0.75f), meta.stream()
+                .filter(d -> d.getIndex() == PacketMetadataBuilder.DISPLAY_SCALE_INDEX)
+                .findFirst().orElseThrow().getValue());
+        assertEquals(PacketMetadataBuilder.BILLBOARD_CENTER, meta.stream()
+                .filter(d -> d.getIndex() == PacketMetadataBuilder.DISPLAY_BILLBOARD_INDEX)
+                .findFirst().orElseThrow().getValue());
+        assertEquals(text, meta.stream()
+                .filter(d -> d.getIndex() == PacketMetadataBuilder.TEXT_DISPLAY_TEXT_INDEX)
+                .findFirst().orElseThrow().getValue());
+        assertEquals(PacketMetadataBuilder.VANILLA_NAMEPLATE_BACKGROUND, meta.stream()
+                .filter(d -> d.getIndex() == PacketMetadataBuilder.TEXT_DISPLAY_BACKGROUND_COLOR_INDEX)
+                .findFirst().orElseThrow().getValue());
+        byte flags = (byte) meta.stream()
+                .filter(d -> d.getIndex() == PacketMetadataBuilder.TEXT_DISPLAY_FLAGS_INDEX)
+                .findFirst().orElseThrow().getValue();
+        assertEquals(PacketMetadataBuilder.TEXT_FLAGS_VANILLA_NAMEPLATE, flags);
+        assertEquals(0, flags & 0x02, "see-through flag must be disabled");
+    }
+
+    @Test
+    void managesPerPlayerHoverTextLifecycleAcrossTargetChangesAndDestruction() {
+        List<PacketWrapper<?>> sent = new ArrayList<>();
+        AtomicInteger nextId = new AtomicInteger(2_000_000);
+        Player player = mock(Player.class);
+        UUID playerId = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(playerId);
+
+        PacketMetadataBuilder builder = new PacketMetadataBuilder(bytes -> null);
+        PacketEventsDisplayRenderer renderer = new PacketEventsDisplayRenderer(
+                (p, packet) -> sent.add(packet),
+                builder,
+                nextId::getAndIncrement,
+                () -> List.of(player),
+                (p, item) -> true
+        );
+
+        PlacedItem itemA = sampleItem(SurfaceFace.UP, PoseMode.FLAT);
+        PlacedItem itemB = sampleItem(SurfaceFace.NORTH, PoseMode.FLAT);
+
+        assertEquals(false, renderer.hasVisibleItems(player));
+        renderer.broadcastSpawn(itemA);
+        assertTrue(renderer.hasVisibleItems(player));
+        sent.clear();
+
+        // Showing hover label for itemA emits SpawnEntity(TEXT_DISPLAY) + EntityMetadata
+        renderer.showHoverText(player, itemA.id(), Component.text("Mug A"), new Vec3d(0.5, 65.0, 0.5), 0.75f);
+        assertEquals(2, sent.size());
+        WrapperPlayServerSpawnEntity spawnA = assertInstanceOf(WrapperPlayServerSpawnEntity.class, sent.get(0));
+        assertEquals(EntityTypes.TEXT_DISPLAY, spawnA.getEntityType());
+        assertInstanceOf(WrapperPlayServerEntityMetadata.class, sent.get(1));
+
+        // Repeating the same item produces zero packets
+        renderer.showHoverText(player, itemA.id(), Component.text("Mug A"), new Vec3d(0.5, 65.0, 0.5), 0.75f);
+        assertEquals(2, sent.size());
+
+        // Switching to itemB destroys labelA and spawns labelB
+        renderer.showHoverText(player, itemB.id(), Component.text("Mug B"), new Vec3d(0.5, 65.0, 1.5), 0.75f);
+        assertEquals(5, sent.size());
+        WrapperPlayServerDestroyEntities destroyA = assertInstanceOf(WrapperPlayServerDestroyEntities.class, sent.get(2));
+        assertEquals(1, destroyA.getEntityIds().length);
+        assertEquals(spawnA.getEntityId(), destroyA.getEntityIds()[0]);
+        WrapperPlayServerSpawnEntity spawnB = assertInstanceOf(WrapperPlayServerSpawnEntity.class, sent.get(3));
+        assertEquals(EntityTypes.TEXT_DISPLAY, spawnB.getEntityType());
+
+        // broadcastDestroy(itemB) destroys labelB even if itemB wasn't spawned as a viewer
+        renderer.broadcastDestroy(itemB.id());
+        assertEquals(6, sent.size());
+        WrapperPlayServerDestroyEntities destroyB = assertInstanceOf(WrapperPlayServerDestroyEntities.class, sent.get(5));
+        assertEquals(spawnB.getEntityId(), destroyB.getEntityIds()[0]);
+
+        // destroyForPlayer(itemA) clears matching active hover label too
+        renderer.showHoverText(player, itemA.id(), Component.text("Mug A"), new Vec3d(0.5, 65.0, 0.5), 0.75f);
+        int labelA2 = assertInstanceOf(WrapperPlayServerSpawnEntity.class, sent.get(6)).getEntityId();
+        sent.clear();
+        renderer.destroyForPlayer(player, itemA.id());
+        assertEquals(2, sent.size());
+        assertEquals(labelA2, assertInstanceOf(WrapperPlayServerDestroyEntities.class, sent.get(0)).getEntityIds()[0]);
+        assertEquals(false, renderer.hasVisibleItems(player));
+
+        // destroyAllForPlayer also cleans up active hover label
+        renderer.broadcastSpawn(itemA);
+        renderer.showHoverText(player, itemA.id(), Component.text("Mug A"), new Vec3d(0.5, 65.0, 0.5), 0.75f);
+        sent.clear();
+        renderer.destroyAllForPlayer(player);
+        assertEquals(1, sent.size());
+        WrapperPlayServerDestroyEntities destroyAll = assertInstanceOf(WrapperPlayServerDestroyEntities.class, sent.get(0));
+        assertEquals(3, destroyAll.getEntityIds().length);
     }
 
     private static PlacedItem sampleItem(SurfaceFace face, PoseMode poseMode) {

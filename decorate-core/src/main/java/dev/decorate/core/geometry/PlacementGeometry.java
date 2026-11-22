@@ -159,6 +159,45 @@ public final class PlacementGeometry {
         };
     }
 
+    /**
+     * Computes the world position for a hover {@code TextDisplay} label relative to the item's
+     * surface face and hitbox dimensions so labels sit above floor/wall items and below ceiling items.
+     *
+     * @param pose surface pose
+     * @param verticalOffset minimum vertical separation in blocks
+     * @return world coordinates for the floating text display
+     */
+    public static Vec3d computeHoverLabelPosition(SurfacePose pose, double verticalOffset) {
+        Objects.requireNonNull(pose, "pose must not be null");
+        Vec3d center = pose.exactPosition();
+        SurfaceFace face = pose.face();
+        double width = pose.hitboxWidth();
+        double height = pose.hitboxHeight();
+        double minVertical = Math.max(0.0, verticalOffset);
+
+        return switch (face) {
+            case UP -> new Vec3d(
+                    center.x(),
+                    center.y() + Math.max(minVertical, height * 0.65 + 0.12),
+                    center.z()
+            );
+            case DOWN -> new Vec3d(
+                    center.x(),
+                    center.y() - Math.max(minVertical, height * 0.65 + 0.18),
+                    center.z()
+            );
+            case NORTH, SOUTH, EAST, WEST -> {
+                double normalGap = Math.max(0.12, width * 0.25);
+                double yOffset = Math.max(minVertical, height * 0.5 + 0.12);
+                yield new Vec3d(
+                        center.x() + face.normalX() * normalGap,
+                        center.y() + yOffset,
+                        center.z() + face.normalZ() * normalGap
+                );
+            }
+        };
+    }
+
     private static Quaternion4 wallQuaternion(double facingYawDeg, float localRollDeg, PoseMode mode) {
         Quaternion4 facing = Quaternion4.fromAxisAngleDegrees(0, 1, 0, facingYawDeg);
         Quaternion4 roll = Quaternion4.fromAxisAngleDegrees(0, 0, 1, localRollDeg);

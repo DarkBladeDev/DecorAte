@@ -9,6 +9,7 @@ import dev.decorate.api.model.PlacedItem;
 import dev.decorate.api.model.SurfacePose;
 import dev.decorate.core.geometry.PlacementGeometry;
 import dev.decorate.core.geometry.Quaternion4;
+import net.kyori.adventure.text.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,8 +17,8 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Builds Minecraft 1.21.8 protocol metadata lists for virtual {@code ItemDisplay}
- * and {@code Interaction} entities.
+ * Builds Minecraft 1.21.8 protocol metadata lists for virtual {@code ItemDisplay},
+ * {@code TextDisplay}, and {@code Interaction} entities.
  */
 public final class PacketMetadataBuilder {
 
@@ -31,6 +32,18 @@ public final class PacketMetadataBuilder {
     public static final int DISPLAY_SHADOW_RADIUS_INDEX = 18;
     public static final int ITEM_DISPLAY_STACK_INDEX = 23;
     public static final int ITEM_DISPLAY_TRANSFORM_INDEX = 24;
+
+    public static final int TEXT_DISPLAY_TEXT_INDEX = 23;
+    public static final int TEXT_DISPLAY_LINE_WIDTH_INDEX = 24;
+    public static final int TEXT_DISPLAY_BACKGROUND_COLOR_INDEX = 25;
+    public static final int TEXT_DISPLAY_OPACITY_INDEX = 26;
+    public static final int TEXT_DISPLAY_FLAGS_INDEX = 27;
+
+    public static final byte BILLBOARD_CENTER = (byte) 3;
+    public static final int TEXT_DEFAULT_LINE_WIDTH = 200;
+    public static final int VANILLA_NAMEPLATE_BACKGROUND = 0x40000000;
+    public static final byte TEXT_OPACITY_OPAQUE = (byte) -1;
+    public static final byte TEXT_FLAGS_VANILLA_NAMEPLATE = (byte) 0x00;
 
     public static final int INTERACTION_WIDTH_INDEX = 8;
     public static final int INTERACTION_HEIGHT_INDEX = 9;
@@ -82,6 +95,34 @@ public final class PacketMetadataBuilder {
         data.add(new EntityData<>(INTERACTION_WIDTH_INDEX, EntityDataTypes.FLOAT, pose.hitboxWidth()));
         data.add(new EntityData<>(INTERACTION_HEIGHT_INDEX, EntityDataTypes.FLOAT, pose.hitboxHeight()));
         data.add(new EntityData<>(INTERACTION_RESPONSIVE_INDEX, EntityDataTypes.BOOLEAN, true));
+        return data;
+    }
+
+    /**
+     * Builds the entity metadata list for an {@code EntityTypes.TEXT_DISPLAY} floating hover label
+     * styled after a vanilla nameplate (center billboard, semi-transparent dark background, not see-through).
+     *
+     * @param text custom display name component
+     * @param scale uniform text scale
+     * @return metadata entries
+     */
+    public List<EntityData<?>> buildTextDisplayMetadata(Component text, float scale) {
+        Objects.requireNonNull(text, "text must not be null");
+        float clampedScale = Math.max(0.1f, scale);
+        List<EntityData<?>> data = new ArrayList<>(12);
+        data.add(new EntityData<>(DISPLAY_INTERPOLATION_DELAY_INDEX, EntityDataTypes.INT, 0));
+        data.add(new EntityData<>(DISPLAY_TRANSFORM_DURATION_INDEX, EntityDataTypes.INT, 0));
+        data.add(new EntityData<>(DISPLAY_TRANSLATION_INDEX, EntityDataTypes.VECTOR3F, Vector3f.zero()));
+        data.add(new EntityData<>(DISPLAY_SCALE_INDEX, EntityDataTypes.VECTOR3F,
+                new Vector3f(clampedScale, clampedScale, clampedScale)));
+        data.add(new EntityData<>(DISPLAY_BILLBOARD_INDEX, EntityDataTypes.BYTE, BILLBOARD_CENTER));
+        data.add(new EntityData<>(DISPLAY_VIEW_RANGE_INDEX, EntityDataTypes.FLOAT, 1.0f));
+        data.add(new EntityData<>(DISPLAY_SHADOW_RADIUS_INDEX, EntityDataTypes.FLOAT, 0.0f));
+        data.add(new EntityData<>(TEXT_DISPLAY_TEXT_INDEX, EntityDataTypes.ADV_COMPONENT, text));
+        data.add(new EntityData<>(TEXT_DISPLAY_LINE_WIDTH_INDEX, EntityDataTypes.INT, TEXT_DEFAULT_LINE_WIDTH));
+        data.add(new EntityData<>(TEXT_DISPLAY_BACKGROUND_COLOR_INDEX, EntityDataTypes.INT, VANILLA_NAMEPLATE_BACKGROUND));
+        data.add(new EntityData<>(TEXT_DISPLAY_OPACITY_INDEX, EntityDataTypes.BYTE, TEXT_OPACITY_OPAQUE));
+        data.add(new EntityData<>(TEXT_DISPLAY_FLAGS_INDEX, EntityDataTypes.BYTE, TEXT_FLAGS_VANILLA_NAMEPLATE));
         return data;
     }
 }

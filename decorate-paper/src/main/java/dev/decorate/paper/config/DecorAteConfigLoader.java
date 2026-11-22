@@ -47,6 +47,10 @@ public final class DecorAteConfigLoader {
         boolean autoCleanup = config.getBoolean("support-block.auto-cleanup", true);
         boolean dropSurvival = config.getBoolean("support-block.drop-survival-items", true);
         int renderChunkRadius = Math.max(1, config.getInt("visibility.render-chunk-radius", 4));
+        boolean hoverEnabled = config.getBoolean("visibility.hover-display-name.enabled", true);
+        int hoverIntervalTicks = Math.max(1, config.getInt("visibility.hover-display-name.check-interval-ticks", 2));
+        float hoverScale = Math.max(0.1f, (float) config.getDouble("visibility.hover-display-name.scale", 0.75));
+        double hoverVerticalOffset = Math.max(0.0, config.getDouble("visibility.hover-display-name.vertical-offset", 0.28));
 
         return new DecorateSettings(
                 maxDistance,
@@ -61,7 +65,11 @@ public final class DecorAteConfigLoader {
                 renderChunkRadius,
                 new PlacementMode(modeType, gridDivisions),
                 requireSneak,
-                globalEnabled
+                globalEnabled,
+                hoverEnabled,
+                hoverIntervalTicks,
+                hoverScale,
+                hoverVerticalOffset
         );
     }
 
